@@ -55,22 +55,13 @@ static void whiskermenu_icon_renderer_get_preferred_width(GtkCellRenderer* rende
 	gtk_cell_renderer_get_padding(renderer, &pad, nullptr);
 	gint width = (pad * 2) + icon_renderer->size;
 
-	if (icon_renderer->stretch)
-	{
-		width += 76 - (icon_renderer->size / 4);
-		if (natural)
-		{
-			*natural = (width * 2) - 1;
-		}
-	}
-	else if (natural)
-	{
-		*natural = width;
-	}
-
 	if (minimum)
 	{
 		*minimum = width;
+	}
+	if (natural)
+	{
+		*natural = width;
 	}
 }
 

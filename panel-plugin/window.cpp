@@ -21,6 +21,7 @@
 #include "category-button.h"
 #include "command.h"
 #include "favorites-page.h"
+#include "launcher-icon-view.h"
 #include "launcher-view.h"
 #include "plugin.h"
 #include "profile.h"
@@ -452,9 +453,33 @@ void WhiskerMenu::Window::hide(bool lost_focus)
 
 //-----------------------------------------------------------------------------
 
+static void wm_dump_walk(GtkWidget* w, int depth, FILE* f)
+{
+	gint mn = 0, nt = 0;
+	gtk_widget_get_preferred_width(w, &mn, &nt);
+	for (int i = 0; i < depth; ++i) fprintf(f, "  ");
+	fprintf(f, "%s [%s] alloc=%d min=%d nat=%d\n", G_OBJECT_TYPE_NAME(w),
+			gtk_widget_get_name(w) ? gtk_widget_get_name(w) : "-", gtk_widget_get_allocated_width(w), (int)mn, (int)nt);
+	if (GTK_IS_CONTAINER(w))
+	{
+		GList* ch = gtk_container_get_children(GTK_CONTAINER(w));
+		for (GList* l = ch; l; l = l->next)
+		{
+			wm_dump_walk(GTK_WIDGET(l->data), depth + 1, f);
+		}
+		g_list_free(ch);
+	}
+}
+
+//-----------------------------------------------------------------------------
+
 void WhiskerMenu::Window::show(const Position position)
 {
 	m_position = position;
+	{
+		FILE* f = fopen("/tmp/wm-debug.log", "a");
+		if (f) { fprintf(f, "show() called pos=%d\n", (int)position); fclose(f); }
+	}
 
 	// Handle switching view types
 	m_search_results->update_view();
@@ -598,6 +623,17 @@ void WhiskerMenu::Window::show(const Position position)
 
 	// Show window
 	gtk_window_present(m_window);
+	g_idle_add(+[](gpointer data) -> gint
+	{
+		FILE* f = fopen("/tmp/wm-debug.log", "a");
+		if (f)
+		{
+			fprintf(f, "=== show dump ===\n");
+			wm_dump_walk(GTK_WIDGET(data), 0, f);
+			fclose(f);
+		}
+		return G_SOURCE_REMOVE;
+	}, m_window);
 
 	if (resized)
 	{
@@ -1056,8 +1092,22 @@ bool WhiskerMenu::Window::set_size(int width, int height)
 	{
 		m_geometry.width = width;
 		m_geometry.height = height;
+		// عرض از محتوا: nat ویجت لانچر (2×آیتم شامل رندررها) + nat دسته‌ها + قاب (20)
+		{
+			gint lav_mn = 0, lav_nt = 0, cat_mn = 0, cat_nt = 0;
+			gtk_widget_get_preferred_width(GTK_WIDGET(m_favorites->get_view()->get_widget()), &lav_mn, &lav_nt);
+			gtk_widget_get_preferred_width(GTK_WIDGET(m_category_buttons), &cat_mn, &cat_nt);
+			int content_w = (int)lav_nt + (int)cat_nt + 20;
+			if (content_w > 300)
+			{
+				width = content_w;
+			}
+			m_geometry.width = width;
+		}
 		gtk_widget_set_size_request(GTK_WIDGET(m_window), m_geometry.width, m_geometry.height);
-		gtk_window_resize(m_window, 1, 1);
+		gtk_window_resize(m_window, m_geometry.width, m_geometry.height);
+		gtk_widget_set_size_request(GTK_WIDGET(m_window), m_geometry.width, m_geometry.height);
+		gtk_window_resize(m_window, m_geometry.width, m_geometry.height);
 		resized = true;
 	}
 	return resized;

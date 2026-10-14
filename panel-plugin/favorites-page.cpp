@@ -107,6 +107,8 @@ void FavoritesPage::set_menu_items()
 {
 	GtkTreeModel* model = get_window()->get_applications()->create_launcher_model(wm_settings->favorites);
 	get_view()->set_model(model);
+	get_view()->set_width_authority();
+	get_view()->update_item_width(true);
 
 	connect(model, "row-changed",
 		[this](GtkTreeModel* tree_model, GtkTreePath* path, GtkTreeIter* iter)
@@ -172,6 +174,7 @@ bool FavoritesPage::remember_launcher(Launcher* launcher)
 
 void FavoritesPage::on_row_changed(GtkTreeModel* model, GtkTreePath* path, GtkTreeIter* iter)
 {
+	get_view()->update_item_width(true);
 	const int pos = gtk_tree_path_get_indices(path)[0];
 	if (pos >= wm_settings->favorites.size())
 	{
@@ -190,6 +193,7 @@ void FavoritesPage::on_row_changed(GtkTreeModel* model, GtkTreePath* path, GtkTr
 
 void FavoritesPage::on_row_inserted(GtkTreeModel* model, GtkTreePath* path, GtkTreeIter* iter)
 {
+	get_view()->update_item_width(true);
 	const int pos = gtk_tree_path_get_indices(path)[0];
 
 	std::string desktop_id;
@@ -214,6 +218,7 @@ void FavoritesPage::on_row_inserted(GtkTreeModel* model, GtkTreePath* path, GtkT
 
 void FavoritesPage::on_row_deleted(GtkTreePath* path)
 {
+	get_view()->update_item_width(true);
 	const int pos = gtk_tree_path_get_indices(path)[0];
 	if (pos < wm_settings->favorites.size())
 	{

@@ -57,6 +57,7 @@ Page::Page(Window* window, const gchar* icon, const gchar* text) :
 
 	// Add scrolling to view
 	m_widget = gtk_scrolled_window_new(nullptr, nullptr);
+	// اسکرول‌بار عمودی EXTERNAL تا فضای ستون‌ها را نگیرد (عرض = دقیقاً محتوا)
 	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(m_widget), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
 	gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(m_widget), GTK_SHADOW_ETCHED_IN);
 	gtk_container_add(GTK_CONTAINER(m_widget), m_view->get_widget());

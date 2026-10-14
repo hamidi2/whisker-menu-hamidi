@@ -61,6 +61,19 @@ public:
 	void unset_drag_dest() override;
 
 	void reload_icon_size() override;
+	void update_item_width(bool measure) override;
+	gboolean wrap_navigation(GdkEventKey* event);
+	void set_width_authority() override;
+	void schedule_width_update();
+
+public:
+	static int s_item_width;
+
+private:
+	bool m_authority;
+	bool m_width_pending;
+
+private:
 
 private:
 	GtkIconView* m_view;

@@ -49,6 +49,9 @@ public:
 	virtual void set_fixed_height_mode(bool fixed_height)=0;
 	virtual void set_selection_mode(GtkSelectionMode mode)=0;
 
+	virtual void update_item_width(bool measure) { (void)measure; }
+	virtual void set_width_authority() {}
+
 	virtual void hide_tooltips()=0;
 	virtual void show_tooltips()=0;
 
