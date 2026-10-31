@@ -24,6 +24,8 @@
 #include "window.h"
 
 #include <libxfce4panel/libxfce4panel.h>
+
+#include <algorithm>
 #include <libxfce4ui/libxfce4ui.h>
 
 using namespace WhiskerMenu;
@@ -124,7 +126,8 @@ void Profile::reset_tooltip()
 void Profile::update_picture()
 {
 	const gint scale = gtk_widget_get_scale_factor(m_image);
-	const gint size = 32;
+	// آواتار هم‌اندازهٔ آیکون‌ها (پیروی از launcher-icon-size مثل بقیهٔ اجزای منو)
+	const gint size = wm_settings->launcher_icon_size.get_size();
 	const gint half_size = size / 2;
 
 	GdkPixbuf* pixbuf = gdk_pixbuf_new_from_file_at_size(m_file_path, size * scale, size * scale, nullptr);
@@ -132,6 +135,25 @@ void Profile::update_picture()
 	{
 		gtk_image_set_from_icon_name(GTK_IMAGE(m_image), "avatar-default", GTK_ICON_SIZE_DND);
 		return;
+	}
+
+	// crop مربع مرکزی — عکس‌های غیرمربعی بدون این، بیضی می‌شوند و لبهٔ دیدنی
+	// آواتار به aspect عکس وابسته می‌شد (حاشیهٔ هدر قطعی نمی‌ماند)
+	{
+		const gint pw = gdk_pixbuf_get_width(pixbuf);
+		const gint ph = gdk_pixbuf_get_height(pixbuf);
+		const gint side = std::min(pw, ph);
+		if ((side < pw) || (side < ph))
+		{
+			GdkPixbuf* square = gdk_pixbuf_new_subpixbuf(pixbuf,
+					(pw - side) / 2, (ph - side) / 2, side, side);
+			// مقیاس به اندازهٔ هدف
+			GdkPixbuf* scaled = gdk_pixbuf_scale_simple(square, size * scale, size * scale,
+					GDK_INTERP_BILINEAR);
+			g_object_unref(square);
+			g_object_unref(pixbuf);
+			pixbuf = scaled;
+		}
 	}
 
 	const gint half_width = gdk_pixbuf_get_width(pixbuf) / scale / 2;
@@ -144,11 +166,20 @@ void Profile::update_picture()
 	cairo_surface_set_device_scale(surface, scale, scale);
 	cairo_t* cr = cairo_create(surface);
 
+	// inset اپتیکال ۲px: glyph آیکون‌های تم داخل جعبه‌شان حاشیهٔ شفاف دارند ولی
+	// آواتار تا لبه پر می‌شد — برای همین «حاشیهٔ کمتری» برای آواتار دیده می‌شد
+	const gint inset = 2;
+
 	if (wm_settings->profile_shape == Settings::ProfileRound)
 	{
-		cairo_arc(cr, half_size, half_size, half_size, 0, 2 * G_PI);
+		cairo_arc(cr, half_size, half_size, half_size - inset, 0, 2 * G_PI);
 		cairo_clip(cr);
 		cairo_new_path(cr);
+	}
+	else
+	{
+		cairo_rectangle(cr, inset, inset, size - 2 * inset, size - 2 * inset);
+		cairo_clip(cr);
 	}
 
 	cairo_set_source_surface(cr, picture, half_size - half_width, half_size - half_height);

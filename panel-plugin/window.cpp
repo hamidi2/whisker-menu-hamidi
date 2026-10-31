@@ -65,7 +65,7 @@ WhiskerMenu::Window::Window(Plugin* plugin) :
 	m_window = GTK_WINDOW(gtk_window_new(GTK_WINDOW_TOPLEVEL));
 	gtk_widget_set_name(GTK_WIDGET(m_window), "whiskermenu-window");
 	// Untranslated window title to allow window managers to identify it; not visible to users.
-	gtk_window_set_title(m_window, "Whisker Menu");
+	gtk_window_set_title(m_window, "Vibris Menu");
 #ifdef HAVE_GTK_LAYER_SHELL
 	if (!gtk_layer_is_supported())
 #endif
@@ -176,15 +176,16 @@ WhiskerMenu::Window::Window(Plugin* plugin) :
 	gtk_widget_set_valign(GTK_WIDGET(m_window_load_spinner), GTK_ALIGN_CENTER);
 	gtk_stack_add_named(m_window_stack, GTK_WIDGET(m_window_load_spinner), "load");
 
-	// Create resizers
-	m_resize[Resizer::TopLeft] = new Resizer(Resizer::TopLeft, this);
+	// Create resizers — فقط لبهٔ بالا draggable است (منو به پنل پایین چسبیده است)؛
+	// لبه‌های دیگر عملکرد درستی نداشتند (چپ منو را می‌کشید، راست بیکار بود)
+	m_resize[Resizer::TopLeft] = nullptr;
 	m_resize[Resizer::Top] = new Resizer(Resizer::Top, this);
-	m_resize[Resizer::TopRight] = new Resizer(Resizer::TopRight, this);
-	m_resize[Resizer::Left] = new Resizer(Resizer::Left, this);
-	m_resize[Resizer::Right] = new Resizer(Resizer::Right, this);
-	m_resize[Resizer::BottomLeft] = new Resizer(Resizer::BottomLeft, this);
-	m_resize[Resizer::Bottom] = new Resizer(Resizer::Bottom, this);
-	m_resize[Resizer::BottomRight] = new Resizer(Resizer::BottomRight, this);
+	m_resize[Resizer::TopRight] = nullptr;
+	m_resize[Resizer::Left] = nullptr;
+	m_resize[Resizer::Right] = nullptr;
+	m_resize[Resizer::BottomLeft] = nullptr;
+	m_resize[Resizer::Bottom] = nullptr;
+	m_resize[Resizer::BottomRight] = nullptr;
 
 	// Create the profile picture and username label
 	m_profile = new Profile(this);
@@ -198,6 +199,16 @@ WhiskerMenu::Window::Window(Plugin* plugin) :
 			{
 				hide();
 			});
+		// آیکون دکمه‌های هدر = همان اندازهٔ آیکون‌های favorites (GTK_ICON_SIZE_DIALOG
+		// تابع تم است و با launcher-icon-size یکی نمی‌شود)
+		gtk_container_foreach(GTK_CONTAINER(m_commands_button[i]),
+			+[](GtkWidget* w, gpointer)
+			{
+				if (GTK_IS_IMAGE(w))
+				{
+					gtk_image_set_pixel_size(GTK_IMAGE(w), wm_settings->launcher_icon_size.get_size());
+				}
+			}, nullptr);
 	}
 
 	// Create search entry
@@ -256,16 +267,9 @@ WhiskerMenu::Window::Window(Plugin* plugin) :
 	gtk_box_pack_start(search_results, m_search_results->get_widget(), true, true, 0);
 	gtk_container_set_border_width(GTK_CONTAINER(search_results), 0);
 
-	// Create grid for packing resizers
+	// Create grid for packing resizers — فقط Top وجود دارد؛ سلول‌های دیگر خالی می‌مانند
 	GtkGrid* grid = GTK_GRID(gtk_grid_new());
-	gtk_grid_attach(grid, m_resize[Resizer::TopLeft]->get_widget(), 0, 0, 1, 1);
-	gtk_grid_attach(grid, m_resize[Resizer::Top]->get_widget(), 1, 0, 1, 1);
-	gtk_grid_attach(grid, m_resize[Resizer::TopRight]->get_widget(), 2, 0, 1, 1);
-	gtk_grid_attach(grid, m_resize[Resizer::Left]->get_widget(), 0, 1, 1, 1);
-	gtk_grid_attach(grid, m_resize[Resizer::Right]->get_widget(), 2, 1, 1, 1);
-	gtk_grid_attach(grid, m_resize[Resizer::BottomLeft]->get_widget(), 0, 2, 1, 1);
-	gtk_grid_attach(grid, m_resize[Resizer::Bottom]->get_widget(), 1, 2, 1, 1);
-	gtk_grid_attach(grid, m_resize[Resizer::BottomRight]->get_widget(), 2, 2, 1, 1);
+	gtk_grid_attach(grid, m_resize[Resizer::Top]->get_widget(), 0, 0, 3, 1);
 	gtk_stack_add_named(m_window_stack, GTK_WIDGET(grid), "contents");
 
 	// Create box for packing children
@@ -284,10 +288,27 @@ WhiskerMenu::Window::Window(Plugin* plugin) :
 
 	// Create box for packing username and commands
 	m_title_box = GTK_BOX(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6));
+	// هدر کاملاً قطعی: پد تمِ دکمه‌ها صفر می‌شود تا هر گپ = 6px ثابت باشد
+	// (چپ آواتار = بین دکمه‌ها = راست logout = 6؛ مستقل از تم و اندازهٔ آیکون)
+	{
+		GtkCssProvider* provider = gtk_css_provider_new();
+		gtk_css_provider_load_from_data(provider,
+				".command-button { padding: 0px; min-width: 0px; min-height: 0px; }", -1, nullptr);
+		gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),
+				GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+		g_object_unref(provider);
+		gtk_box_set_spacing(m_commands_box, 6);
+	}
 	gtk_box_pack_start(m_vbox, GTK_WIDGET(m_title_box), false, false, 0);
 	gtk_box_pack_start(m_title_box, m_profile->get_picture(), false, false, 0);
 	gtk_box_pack_start(m_title_box, m_profile->get_username(), true, true, 0);
 	gtk_box_pack_start(m_title_box, GTK_WIDGET(m_commands_box), false, false, 0);
+	gtk_widget_set_margin_start(m_profile->get_picture(), 6);
+	gtk_widget_set_margin_end(m_profile->get_picture(), 6);
+	// هر دو margin: جلسهٔ RTL است و margin_start در RTL سمت معکوس می‌شود؛
+	// با هر دو، گپ هر دو لبه 6px ثابت و مستقل از جهت است
+	gtk_widget_set_margin_start(GTK_WIDGET(m_commands_box), 6);
+	gtk_widget_set_margin_end(GTK_WIDGET(m_commands_box), 6);
 
 	// Add search to layout
 	m_search_box = GTK_BOX(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6));
@@ -309,12 +330,26 @@ WhiskerMenu::Window::Window(Plugin* plugin) :
 
 	// Create box for packing launcher pages
 	m_panels_stack = GTK_STACK(gtk_stack_new());
+	// عرض پنجره از صفحهٔ فعال می‌آید نه ماکزیمم همهٔ صفحات (تک‌ستونه/دوستونه هر صفحه خودش)
+	gtk_stack_set_hhomogeneous(m_panels_stack, FALSE);
 	gtk_grid_attach(m_contents_box, GTK_WIDGET(m_panels_stack), 0, 1, 1, 1);
 	gtk_widget_set_hexpand(GTK_WIDGET(m_panels_stack), true);
 	gtk_widget_set_vexpand(GTK_WIDGET(m_panels_stack), true);
 	gtk_stack_add_named(m_panels_stack, m_favorites->get_widget(), "favorites");
 	gtk_stack_add_named(m_panels_stack, m_recent->get_widget(), "recent");
 	gtk_stack_add_named(m_panels_stack, m_applications->get_widget(), "applications");
+
+	// عرض منو = عرض محتوای صفحهٔ فعال؛ با تعویض صفحه (یا رفتن به جست‌وجو) به‌روز شود
+	auto on_page_switch = +[](GObject*, GParamSpec*, gpointer user_data) -> void
+	{
+		g_idle_add(+[](gpointer data) -> gint
+		{
+			static_cast<Window*>(data)->set_size(wm_settings->menu_width, wm_settings->menu_height);
+			return G_SOURCE_REMOVE;
+		}, user_data);
+	};
+	g_signal_connect(m_panels_stack, "notify::visible-child", G_CALLBACK(on_page_switch), this);
+	g_signal_connect(m_contents_stack, "notify::visible-child", G_CALLBACK(on_page_switch), this);
 
 	// Create box for packing sidebar
 	m_category_buttons = GTK_BOX(gtk_box_new(GTK_ORIENTATION_VERTICAL, 0));
@@ -476,10 +511,6 @@ static void wm_dump_walk(GtkWidget* w, int depth, FILE* f)
 void WhiskerMenu::Window::show(const Position position)
 {
 	m_position = position;
-	{
-		FILE* f = fopen("/tmp/wm-debug.log", "a");
-		if (f) { fprintf(f, "show() called pos=%d\n", (int)position); fclose(f); }
-	}
 
 	// Handle switching view types
 	m_search_results->update_view();
@@ -589,6 +620,9 @@ void WhiskerMenu::Window::show(const Position position)
 	}
 #endif
 	gdk_monitor_get_geometry(monitor_gdk, &m_monitor);
+	// workarea = ناحیهٔ بدون داک/پنل؛ منو هرگز نباید پنل را بپوشاند
+	gdk_monitor_get_workarea(monitor_gdk, &m_workarea);
+	m_max_bottom = m_workarea.y + m_workarea.height;
 	const bool resized = set_size(wm_settings->menu_width, wm_settings->menu_height);
 
 	// Center window if requested
@@ -621,19 +655,60 @@ void WhiskerMenu::Window::show(const Position position)
 		update_layout();
 	}
 
-	// Show window
-	gtk_window_present(m_window);
-	g_idle_add(+[](gpointer data) -> gint
+	// Show window — اما نه قبل از اینکه چیدمان در اندازهٔ نهایی برسد:
+	// realize در حالت مخفی تا چرخهٔ size-allocate قبل از دیده‌شدن کامل شود،
+	// بعد پمپ رویداد؛ منو یک‌پارچه و با اندازهٔ نهایی map می‌شود
+	gtk_widget_realize(GTK_WIDGET(m_window));
+	int pumped = 0;
+	while (gtk_events_pending() && (pumped++ < 25))
 	{
-		FILE* f = fopen("/tmp/wm-debug.log", "a");
-		if (f)
+		gtk_main_iteration_do(FALSE);
+	}
+
+	// رندر کامل منو در بافر حافظه قبل از دیده‌شدن (معادل BitBlt): یک
+	// image surface می‌سازیم، کل درخت ویجت را داخلش draw می‌کنیم —
+	// هیچ پیکسلی از این مرحله روی صفحه نمی‌رود. پس‌زمینهٔ سفید دیباگ هم
+	// فقط داخل همین بافر کشیده می‌شود و دیگر با پنجرهٔ X کاری ندارد.
+	{
+		const int w = gtk_widget_get_allocated_width(GTK_WIDGET(m_window));
+		const int h = gtk_widget_get_allocated_height(GTK_WIDGET(m_window));
+		if ((w > 0) && (h > 0))
 		{
-			fprintf(f, "=== show dump ===\n");
-			wm_dump_walk(GTK_WIDGET(data), 0, f);
-			fclose(f);
+			cairo_surface_t* buffer = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h);
+			cairo_t* cr = cairo_create(buffer);
+			if (g_getenv("VIBRIS_DEBUG_WHITE"))
+			{
+				cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+			}
+			else
+			{
+				// همان پس‌زمینهٔ عادی تم — نه سفید
+				GtkStyleContext* ctx = gtk_widget_get_style_context(GTK_WIDGET(m_window));
+				gtk_render_background(ctx, cr, 0, 0, w, h);
+			}
+			gtk_widget_draw(GTK_WIDGET(m_window), cr);
+			cairo_destroy(cr);
+			cairo_surface_destroy(buffer);
 		}
-		return G_SOURCE_REMOVE;
-	}, m_window);
+	}
+
+	// ظرفیت ستون‌ها با تخصیص نهایی — هنوز مخفی؛ هر اصلاحی اینجا نامرئی است
+	m_favorites->sync_capacity();
+
+	gtk_window_present(m_window);
+
+	// پس‌زمینهٔ سفید فقط ابزار دیباگ محیط تست (VIBRIS_DEBUG_WHITE) — روی
+	// جلسهٔ واقعی هرگز؛ پس‌زمینهٔ پنجره همان پس‌زمینهٔ عادی تم می‌ماند تا
+	// اولین فریمِ پاک‌شدن پنجره سفید دیده نشود
+	if (g_getenv("VIBRIS_DEBUG_WHITE"))
+	{
+		GdkWindow* win = gtk_widget_get_window(GTK_WIDGET(m_window));
+		if (win)
+		{
+			GdkRGBA white = {1.0, 1.0, 1.0, 1.0};
+			gdk_window_set_background_rgba(win, &white);
+		}
+	}
 
 	if (resized)
 	{
@@ -658,23 +733,186 @@ void WhiskerMenu::Window::show(const Position position)
 
 	// Move window
 	move_window();
+
+	// تضمین نهایی: پایین منو هرگز وارد workarea (پنل) نشود؛
+	// اگر ارتفاع ذخیره‌شده جا نشود کل پنجره بالا می‌رود (پایین چسبیده به پنل)
+	if ((m_max_bottom > 0) && (m_geometry.y + m_geometry.height > m_max_bottom))
+	{
+		m_geometry.y = m_max_bottom - m_geometry.height;
+		move_window();
+	}
+}
+
+//-----------------------------------------------------------------------------
+
+int WhiskerMenu::Window::favorites_capacity_rows() const
+{
+	// ظرفیت ستون‌ها — کاملاً در لحظهٔ تغییر محتوا و بدون نیاز به show:
+	// pitch = بلندترین محتوای سلول (آیکون یا متن) + row-spacing؛ همه در حافظه
+	// با pango/تنظیمات خودمان محاسبه می‌شوند، نه از ویجت رندرشده.
+	// استثنا: حین درگ، تخصیص واقعی معیار است (خود درگ = تغییر ارتفاع).
+	GtkWidget* v = m_favorites->get_view()->get_widget();
+	const gint icon = wm_settings->launcher_icon_size.get_size();
+
+	// ارتفاع متنِ عریض‌ترین آیتم (همان measure عرض در update_item_width + h)
+	int text_h = 0;
+	GtkTreeModel* model = gtk_icon_view_get_model(GTK_ICON_VIEW(v));
+	if (model)
+	{
+		PangoLayout* layout = gtk_widget_create_pango_layout(v, nullptr);
+		GtkTreeIter iter;
+		if (gtk_tree_model_get_iter_first(model, &iter))
+		{
+			do
+			{
+				gchar* text = nullptr;
+				gtk_tree_model_get(model, &iter, LauncherView::COLUMN_TEXT, &text, -1);
+				if (text)
+				{
+					pango_layout_set_markup(layout, text, -1);
+					int h = 0;
+					pango_layout_get_pixel_size(layout, nullptr, &h);
+					if (h > text_h)
+					{
+						text_h = h;
+					}
+					g_free(text);
+				}
+			} while (gtk_tree_model_iter_next(model, &iter));
+		}
+		g_object_unref(layout);
+	}
+	// pitch: اولویت با اندازه‌گیری واقعی قبلی (sync_capacity)؛ فرمول فقط
+	// قبل از اولین show که هیچ سلولی رسم نشده
+	int pitch = FavoritesPage::s_measured_pitch;
+	if (pitch <= 0)
+	{
+		gint rs = 0, item_pad = 0;
+		g_object_get(G_OBJECT(v), "row-spacing", &rs, "item-padding", &item_pad, nullptr);
+		pitch = std::max(icon, text_h) + 2 * item_pad + rs;
+	}
+
+	// ارتفاع در دسترس: تخصیصِ view فقط وقتی معتبر است که با هندسهٔ خواستهٔ
+	// فعلی هم‌خوان باشد. در حالت هم‌خوان، chrome واقعی (win−view) ذخیره می‌شود
+	// تا تخمینِ فریم‌های ناهم‌خوان (بین درخواست و تخصیص) دقیقاً همان عدد را
+	// بدهد — اختلاف estimate/allocation ظرفیت را یکی جابه‌جا می‌کرد و ستون‌ها
+	// ۱↔۲ فلیپ می‌شدند (عرض ۵۸۴↔۵۹۶ و جابه‌جایی آیتم‌ها = پیرپیر)
+	const int win_alloc = gtk_widget_get_allocated_height(GTK_WIDGET(m_window));
+	const int alloc_h = gtk_widget_get_allocated_height(v);
+	int avail = 0;
+	if ((win_alloc > 1) && (alloc_h > 1) && (win_alloc == m_geometry.height))
+	{
+		avail = alloc_h;
+		m_last_chrome = win_alloc - alloc_h;
+	}
+	else if (m_last_chrome > 0)
+	{
+		avail = m_geometry.height - m_last_chrome;
+	}
+	else
+	{
+		gint title_h = 0, search_h = 0;
+		gtk_widget_get_preferred_height(GTK_WIDGET(m_title_box), nullptr, &title_h);
+		gtk_widget_get_preferred_height(GTK_WIDGET(m_search_box), nullptr, &search_h);
+		// کالیبره‌شده با پروب واقعی: قاب پنجره + فاصله‌ها = 10 (فراتر از دو گپ vbox)
+		avail = wm_settings->menu_height - title_h - search_h - 12 - 10;
+	}
+	// margin دوسرِ GtkIconView (پیش‌فرض 6×2) از ارتفاع مؤثر کم می‌شود —
+	// نبودش یعنی ظرفیت یکی بیش‌تر حساب می‌شد و scrollbar مرزی ظاهر می‌شد
+	gint iv_margin = 0;
+	g_object_get(G_OBJECT(v), "margin", &iv_margin, nullptr);
+	avail -= 2 * iv_margin;
+
+	if ((avail <= 0) || (pitch <= 0))
+	{
+		return 1;
+	}
+	return std::max(1, avail / pitch);
 }
 
 //-----------------------------------------------------------------------------
 
 void WhiskerMenu::Window::resize(int delta_x, int delta_y, int delta_width, int delta_height)
 {
-	if (set_size(m_geometry.width + delta_width, m_geometry.height + delta_height))
+	// حل هدف در سه قید: سقف بالا (workarea)، حداقل ارتفاع محتوا، چسبیدن پایین به پنل.
+	// y و h همزمان حل می‌شوند وگرنه در مرزها «ته خالی» یا عبور از پنل رخ می‌دهد.
+	int target_y = m_geometry.y + delta_y;
+	int target_h = m_geometry.height + delta_height;
+	if (target_y < m_workarea.y)
+	{
+		target_h += target_y - m_workarea.y; // بالای صفحه: رشد کمتر، نه جدا شدن پایین
+		target_y = m_workarea.y;
+	}
+	if (target_h < m_min_h)
+	{
+		target_h = m_min_h; // GTK کوچک‌تر را نمی‌پذیرد — y باید خودش تنظیم شود
+	}
+	if ((m_max_bottom > 0) && (target_y + target_h > m_max_bottom))
+	{
+		target_y = m_max_bottom - target_h;
+		if (target_y < m_workarea.y)
+		{
+			target_y = m_workarea.y;
+			target_h = std::max(m_min_h, m_max_bottom - target_y);
+		}
+	}
+	// هدف را به‌روز کن؛ اعمال یک‌بار در هر چرخهٔ main-loop (coalesce موشن‌های تند) —
+	// اعمالِ re-entrant داخل هندلرِ موشن = پیرپیر حین حرکت تند
+	m_target_x = m_geometry.x + delta_x;
+	m_target_y = target_y;
+	m_target_w = m_geometry.width + delta_width;
+	m_target_h = target_h;
+	if (m_resizing)
+	{
+		if (m_size_idle_id == 0)
+		{
+			m_size_idle_id = g_idle_add(+[](gpointer data) -> gint
+			{
+				auto window = static_cast<Window*>(data);
+				window->m_size_idle_id = 0;
+				window->apply_target_size();
+				return G_SOURCE_REMOVE;
+			}, this);
+		}
+	}
+	else
+	{
+		apply_target_size();
+	}
+}
+
+//-----------------------------------------------------------------------------
+
+void WhiskerMenu::Window::sync_width()
+{
+	// بعد از هر بازچینش favorites، عرض منو = عرض محتوای تازه (ارتفاع دست نمی‌خورد)؛
+	// set_size عرض را از natural ویجت‌ها می‌گیرد، پس مقدار ورودی فقط سقف است —
+	// عرض کهنه menu_width نگذاریم جلوی جمع‌شدن را بگیرد
+	set_size(10, m_geometry.height);
+}
+
+//-----------------------------------------------------------------------------
+
+void WhiskerMenu::Window::update_min_h()
+{
+	// حین درگِ زنده، بعد از هر بازچینش حداقل ارتفاعِ محتوا تازه شود — وگرنه
+	// با چیدمان بلندِ قبلی (تک‌ستونه) clamp به min_h درگِ به پایین را «سفت» می‌کند
+	gint min_h = 0;
+	gtk_widget_get_preferred_height(GTK_WIDGET(m_vbox), &min_h, nullptr);
+	m_min_h = std::max(10, static_cast<int>(min_h) + 10);
+}
+
+//-----------------------------------------------------------------------------
+
+void WhiskerMenu::Window::apply_target_size()
+{
+	m_geometry.x = m_target_x;
+	m_geometry.y = m_target_y;
+	if (set_size(m_target_w, m_target_h))
 	{
 		check_scrollbar_needed();
 	}
-
-	if (delta_x || delta_y)
-	{
-		m_geometry.x += delta_x;
-		m_geometry.y += delta_y;
-		move_window();
-	}
+	move_window();
 }
 
 //-----------------------------------------------------------------------------
@@ -682,6 +920,13 @@ void WhiskerMenu::Window::resize(int delta_x, int delta_y, int delta_width, int 
 void WhiskerMenu::Window::resize_start()
 {
 	m_resizing = true;
+	// policy همیشه AUTOMATIC (NEVER = جریمهٔ min-height = درگ سفت). تصمیم
+	// scrollbar در هوک size-allocate حسابی و همان‌فریم اعمال می‌شود (پایین).
+	// حداقل ارتفاعِ محتوای واقعی — از ویجت محتوا؛ خود پنجره را نگیر چون
+	// set_size_request ما minimum آن را override کرده و همیشه = ارتفاع فعلی می‌شود
+	gint min_h = 0;
+	gtk_widget_get_preferred_height(GTK_WIDGET(m_vbox), &min_h, nullptr);
+	m_min_h = std::max(10, static_cast<int>(min_h) + 10);
 	set_child_has_focus();
 }
 
@@ -689,24 +934,28 @@ void WhiskerMenu::Window::resize_start()
 
 void WhiskerMenu::Window::resize_end()
 {
+	// اگر موشن آخر هنوز اعمال نشده، همین‌جا هم‌گام کن تا اندازهٔ ذخیره‌شده درست باشد
+	if (m_size_idle_id)
+	{
+		g_source_remove(m_size_idle_id);
+		m_size_idle_id = 0;
+		apply_target_size();
+	}
+
 	// Store new size
 	wm_settings->menu_width = m_geometry.width;
 	wm_settings->menu_height = m_geometry.height;
 
-	// Move window back to panel button or center of screen
-	if (m_position == PositionAtButton)
-	{
-		m_plugin->get_menu_position(&m_geometry.x, &m_geometry.y);
-	}
-	else if (m_position == PositionAtCenter)
-	{
-		center_window();
-	}
+	// بدون جابه‌جایی پنجره: درگِ لبه فقط همان لبه را حرکت داده و y ثابت مانده —
+	// فراخوانی get_menu_position اینجا کل منو را می‌پراند (منشأ پرش پس از رها کردن)
 	move_window();
 
 	// Allow menu to hide
 	m_resizing = false;
 	m_child_has_focus = false;
+	// یک بازچینش نهایی با تخصیص قطعی (فقط اصلاح وضعیت، نه کار جبرانی —
+	// کار اصلی حین درگ انجام شده)
+	m_favorites->on_height_changed();
 }
 
 //-----------------------------------------------------------------------------
@@ -811,7 +1060,15 @@ gboolean WhiskerMenu::Window::on_key_press_event(GtkWidget* widget, GdkEventKey*
 		{
 			for (Resizer* resizer : m_resize)
 			{
-				resizer->cancel();
+				if (resizer)
+				{
+					resizer->cancel();
+				}
+			}
+			if (m_size_idle_id)
+			{
+				g_source_remove(m_size_idle_id);
+				m_size_idle_id = 0;
 			}
 			set_size(wm_settings->menu_width, wm_settings->menu_height);
 			resize_end();
@@ -1077,6 +1334,12 @@ void WhiskerMenu::Window::move_window()
 	else
 #endif
 	{
+		// حتماً از APIهای GTK: gtk_window_move/resize فقط state داخلی را
+		// به‌روز می‌کنند و GTK خودش در idle بعدی «یک» ConfigureRequest واحد
+		// (move+resize) می‌فرستد. اگر مستقیم gdk_window_move_resize بزنیم،
+		// GTK از هندسهٔ جدید بی‌خبر می‌ماند و در idle خودش با position/size
+		// کهنه override می‌کند = همان پیرپیر (پایین می‌پرید و برمی‌گشت).
+		gtk_window_resize(m_window, m_geometry.width, m_geometry.height);
 		gtk_window_move(m_window, m_geometry.x, m_geometry.y);
 	}
 }
@@ -1088,26 +1351,74 @@ bool WhiskerMenu::Window::set_size(int width, int height)
 	bool resized = false;
 	width = CLAMP(width, 10, m_monitor.width);
 	height = CLAMP(height, 10, m_monitor.height);
+	// عرض از محتوا — همیشه، حتی حین درگ (خواستهٔ کاربر: همهٔ کار در اثنای
+	// درگ انجام می‌شود، رها کردن هیچ کاری ندارد). محاسبه ارزان است: عرض آیتم
+	// در تغییر محتوا کش شده و فرمول فقط ضرب و جمع است.
+	{
+		Page* page = get_active_page();
+		if (!page)
+		{
+			page = m_favorites;
+		}
+		gint lav_mn = 0, lav_nt = 0, cat_mn = 0, cat_nt = 0;
+		if (page == m_favorites)
+		{
+			// فرمول قطعی (خواستهٔ کاربر): تعداد ستون‌های «استفاده‌شده» × عرض
+			// عریض‌ترین آیتم + حاشیه‌ها + گپ بین ستون‌ها. تعداد ستون تنظیمی =
+			// حداکثر؛ ستون بدون آیتم فضا نمی‌گیرد. item_width یک‌بار در تغییر
+			// محتوا محاسبه و در s_item_width ذخیره می‌شود.
+			// حین درگ اصلاً اینجا نمی‌آییم (m_resizing) → عرض ثابت می‌ماند و
+			// بعد از رها کردن با ستون‌های نهایی sync می‌شود.
+			GtkWidget* v = m_favorites->get_view()->get_widget();
+			// عرض = natural واقعی ویجت‌ها (GTK خودش همین را رندر می‌کند) —
+			// نه فرمول با item_width کهنه (۱۲px اختلاف = لرزش عرض)، و نه
+			// تخصیص جاری که فضای مردهٔ پنجره را هم شامل می‌شود و حلقهٔ
+			// بازخوردی می‌ساخت که فضا را همیشه نگه می‌داشت
+			gtk_widget_get_preferred_width(v, &lav_mn, &lav_nt);
+		}
+		else
+		{
+			gtk_widget_get_preferred_width(GTK_WIDGET(page->get_view()->get_widget()), &lav_mn, &lav_nt);
+		}
+		gtk_widget_get_preferred_width(GTK_WIDGET(m_category_buttons), &cat_mn, &cat_nt);
+		int content_w = (int)lav_nt + (int)cat_nt + 26;
+		if (content_w > 300)
+		{
+			width = content_w;
+		}
+	}
 	if ((m_geometry.width != width) || (m_geometry.height != height))
 	{
+		{
+			Page* dbg_page = get_active_page();
+			gint dbg_lav = 0, dbg_cat = 0, dbg_iw = 0;
+			if (dbg_page == m_favorites)
+			{
+				GtkWidget* dv = m_favorites->get_view()->get_widget();
+				dbg_iw = gtk_icon_view_get_item_width(GTK_ICON_VIEW(dv));
+			}
+			else
+			{
+				gtk_widget_get_preferred_width(GTK_WIDGET(dbg_page->get_view()->get_widget()), nullptr, &dbg_lav);
+			}
+			gtk_widget_get_preferred_width(GTK_WIDGET(m_category_buttons), nullptr, &dbg_cat);
+			FILE* df = fopen("/tmp/wm-width.log", "a");
+			if (df)
+			{
+				fprintf(df, "set_size: %d -> %d (h %d->%d) resizing=%d iw=%d lav_nt=%d cat_nt=%d used=%d\n",
+						m_geometry.width, width, m_geometry.height, height,
+						(int)m_resizing, dbg_iw, dbg_lav, dbg_cat,
+						m_favorites->get_used_columns());
+				fclose(df);
+			}
+		}
 		m_geometry.width = width;
 		m_geometry.height = height;
-		// عرض از محتوا: nat ویجت لانچر (2×آیتم شامل رندررها) + nat دسته‌ها + قاب (20)
-		{
-			gint lav_mn = 0, lav_nt = 0, cat_mn = 0, cat_nt = 0;
-			gtk_widget_get_preferred_width(GTK_WIDGET(m_favorites->get_view()->get_widget()), &lav_mn, &lav_nt);
-			gtk_widget_get_preferred_width(GTK_WIDGET(m_category_buttons), &cat_mn, &cat_nt);
-			int content_w = (int)lav_nt + (int)cat_nt + 20;
-			if (content_w > 300)
-			{
-				width = content_w;
-			}
-			m_geometry.width = width;
-		}
+		// set_size_request همیشه — این حداقلِ toplevel نزد GTK است؛ اگر حین درگ
+		// به‌روز نشود، GTK هر gtk_window_resize را به همان حداقلِ کهنه کلمپ می‌کند
+		// و ارتفاع تغییر نمی‌کند در حالی که y حرکت کرده (منشأ «سُرخوردن» کل منو).
+		// GTK همهٔ اینها را در یک ConfigureRequest واحد ادغام می‌کند.
 		gtk_widget_set_size_request(GTK_WIDGET(m_window), m_geometry.width, m_geometry.height);
-		gtk_window_resize(m_window, m_geometry.width, m_geometry.height);
-		gtk_widget_set_size_request(GTK_WIDGET(m_window), m_geometry.width, m_geometry.height);
-		gtk_window_resize(m_window, m_geometry.width, m_geometry.height);
 		resized = true;
 	}
 	return resized;

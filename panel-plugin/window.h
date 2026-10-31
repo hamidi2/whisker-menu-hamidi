@@ -83,12 +83,22 @@ public:
 	void hide(bool lost_focus = false);
 	void show(const Position position);
 	void resize(int delta_x, int delta_y, int delta_width, int delta_height);
+	void apply_target_size();
 	void resize_start();
 	void resize_end();
+	bool is_resizing() const
+	{
+		return m_resizing;
+	}
 	void set_child_has_focus();
 	void set_categories(const std::vector<CategoryButton*>& categories);
 	void set_items();
 	void set_loaded();
+	bool set_size(int width, int height);
+	void sync_width();
+	void update_min_h();
+	// ظرفیت ردیف‌های هر ستون favorites از ارتفاع فعلی منو (برای چیدمان تا-پر-شدن)
+	int favorites_capacity_rows() const;
 	void unset_items();
 
 private:
@@ -105,7 +115,6 @@ private:
 	void category_toggled();
 	void center_window();
 	void move_window();
-	bool set_size(int width, int height);
 	void reset_default_button();
 	void show_favorites();
 	void show_default_page();
@@ -131,6 +140,22 @@ private:
 
 	Resizer* m_resize[8];
 	Position m_position;
+	GdkRectangle m_workarea = {0, 0, 0, 0};
+	// پایینِ مجاز منو (لبهٔ بالای پنل = انتهای workarea)؛ حین درگِ resize رشد به پایین از این عبور نمی‌کند
+	int m_max_bottom = 0;
+	// درگِ لبه: موشن‌ها فقط هدف را به‌روز می‌کنند؛ اعمال یک‌بار در هر چرخهٔ main-loop
+	// (coalesce) — اعمالِ re-entrant داخل هندلر = پیرپیر حین حرکت تند
+	int m_target_x = 0;
+	int m_target_y = 0;
+	int m_target_w = 0;
+	int m_target_h = 0;
+	guint m_size_idle_id = 0;
+	// حداقل ارتفاعِ محتوای منو (یک‌بار در شروع درگ) — GTK کوچک‌تر از این را نمی‌پذیرد؛
+	// بدون لحاظ آن، y دنبال موس می‌رود و پایین از پنل رد می‌شود
+	int m_min_h = 10;
+	// chrome واقعی آخرین فریم سازگار (win_alloc − view_alloc) — مبنای تخمین
+	// (mutable: favorites_capacity_rows const است و آن را به‌روز می‌کند)
+	mutable int m_last_chrome = 0;
 	GdkRectangle m_monitor;
 
 	Profile* m_profile;

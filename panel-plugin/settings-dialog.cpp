@@ -80,7 +80,7 @@ SettingsDialog::SettingsDialog(Plugin* plugin) :
 	m_plugin(plugin)
 {
 	// Create dialog window
-	m_window = xfce_titled_dialog_new_with_mixed_buttons(_("Whisker Menu"),
+	m_window = xfce_titled_dialog_new_with_mixed_buttons(_("Vibris Menu"),
 			nullptr,
 			GtkDialogFlags(0),
 			"help-browser", _("_Help"), GTK_RESPONSE_HELP,
@@ -947,6 +947,61 @@ GtkWidget* SettingsDialog::init_behavior_tab()
 		[](GtkToggleButton* button)
 		{
 			wm_settings->favorites_in_recent = gtk_toggle_button_get_active(button);
+		});
+
+
+	// Create favorites layout section
+	GtkGrid* favorites_table = GTK_GRID(gtk_grid_new());
+	gtk_grid_set_column_spacing(favorites_table, 12);
+	gtk_grid_set_row_spacing(favorites_table, 6);
+
+	GtkWidget* favorites_frame = make_aligned_frame(_("Favorites Layout"), GTK_WIDGET(favorites_table));
+	gtk_box_pack_start(page, favorites_frame, false, false, 0);
+
+	// Add option to choose the number of columns (automatic or fixed)
+	GtkWidget* columns_label = gtk_label_new_with_mnemonic(_("Number of _columns:"));
+	gtk_widget_set_halign(columns_label, GTK_ALIGN_START);
+	gtk_grid_attach(favorites_table, columns_label, 0, 0, 1, 1);
+
+	GtkWidget* columns_combo = gtk_combo_box_text_new();
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(columns_combo), "1");
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(columns_combo), "2");
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(columns_combo), "3");
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(columns_combo), "4");
+	gtk_combo_box_set_active(GTK_COMBO_BOX(columns_combo), CLAMP(wm_settings->favorites_columns, 1, 4) - 1);
+	gtk_grid_attach(favorites_table, columns_combo, 1, 0, 1, 1);
+	gtk_label_set_mnemonic_widget(GTK_LABEL(columns_label), columns_combo);
+
+	connect(columns_combo, "changed",
+		[this](GtkComboBox* combo)
+		{
+			wm_settings->favorites_columns = gtk_combo_box_get_active(combo) + 1;
+			m_plugin->reload_menu();
+		});
+
+	// Add option to fill across rows first instead of down columns
+	GtkWidget* horizontal = gtk_check_button_new_with_mnemonic(_("Fill across rows first"));
+	gtk_grid_attach(favorites_table, horizontal, 0, 1, 2, 1);
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(horizontal), wm_settings->favorites_horizontal);
+
+	connect(horizontal, "toggled",
+		[this](GtkToggleButton* button)
+		{
+			wm_settings->favorites_horizontal = gtk_toggle_button_get_active(button);
+			m_plugin->reload_menu();
+		});
+
+	// Add option to overlay the vertical scrollbar (no reserved width) or
+	// reserve its width after the last column
+	GtkWidget* scrollbar_overlay = gtk_check_button_new_with_mnemonic(_("_Overlay scrollbar"));
+	gtk_grid_attach(favorites_table, scrollbar_overlay, 0, 2, 2, 1);
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(scrollbar_overlay), wm_settings->favorites_scrollbar_overlay);
+
+	connect(scrollbar_overlay, "toggled",
+		[this](GtkToggleButton* button)
+		{
+			wm_settings->favorites_scrollbar_overlay = gtk_toggle_button_get_active(button);
+			m_plugin->reload_menu();
 		});
 
 

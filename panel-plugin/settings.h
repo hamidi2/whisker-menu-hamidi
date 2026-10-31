@@ -331,6 +331,9 @@ public:
 
 	Integer recent_items_max;
 	Boolean favorites_in_recent;
+	Integer favorites_columns;
+	Boolean favorites_horizontal;
+	Boolean favorites_scrollbar_overlay;
 
 	Boolean position_profile_alternate;
 	Boolean position_search_alternate;

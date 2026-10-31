@@ -37,7 +37,7 @@ Settings* WhiskerMenu::wm_settings = nullptr;
 Settings::Settings(Plugin* plugin) :
 	m_plugin(plugin),
 	m_change_slot(0),
-	m_button_title_default(_("Applications")),
+	m_button_title_default(_("Vibris Menu")),
 	channel(nullptr),
 
 	favorites("/favorites", {
@@ -72,6 +72,9 @@ Settings::Settings(Plugin* plugin) :
 
 	recent_items_max("/recent-items-max", 10, 0, 100),
 	favorites_in_recent("/favorites-in-recent", false),
+	favorites_columns("/favorites-columns", 0, 0, 4),
+	favorites_horizontal("/favorites-horizontal", false),
+	favorites_scrollbar_overlay("/favorites-scrollbar-overlay", true),
 
 	position_profile_alternate("/position-profile-alternate", false),
 	position_search_alternate("/position-search-alternate", false),
@@ -255,6 +258,9 @@ void Settings::load(const gchar* file, bool is_default)
 
 	recent_items_max.load(rc, is_default);
 	favorites_in_recent.load(rc, is_default);
+	favorites_columns.load(rc, is_default);
+	favorites_horizontal.load(rc, is_default);
+	favorites_scrollbar_overlay.load(rc, is_default);
 
 	position_profile_alternate.load(rc, is_default);
 	position_search_alternate.load(rc, is_default);
@@ -403,6 +409,9 @@ void Settings::property_changed(const gchar* property, const GValue* value)
 			|| default_category.load(property, value)
 			|| recent_items_max.load(property, value)
 			|| favorites_in_recent.load(property, value)
+			|| favorites_columns.load(property, value)
+			|| favorites_horizontal.load(property, value)
+			|| favorites_scrollbar_overlay.load(property, value)
 			|| position_profile_alternate.load(property, value)
 			|| position_search_alternate.load(property, value)
 			|| position_commands_alternate.load(property, value)
@@ -416,6 +425,16 @@ void Settings::property_changed(const gchar* property, const GValue* value)
 			|| menu_opacity.load(property, value)
 			|| search_actions.load(property, value))
 	{
+		// تغییر ستون‌بندی/جهت favorites: بازچینش زندهٔ منو
+		// تغییر ستون‌بندی/جهت favorites یا ارتفاع منو: ظرفیت ستون‌ها عوض می‌شود
+		// → بازچینش زندهٔ منو (ارتفاع = ظرفیت ردیف‌های هر ستون)
+		if ((g_strcmp0(property, "/favorites-columns") == 0)
+				|| (g_strcmp0(property, "/favorites-horizontal") == 0)
+				|| (g_strcmp0(property, "/favorites-scrollbar-overlay") == 0)
+				|| (g_strcmp0(property, "/menu-height") == 0))
+		{
+			m_plugin->reload_menu();
+		}
 	}
 
 	else

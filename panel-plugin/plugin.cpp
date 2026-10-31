@@ -127,6 +127,7 @@ Plugin::Plugin(XfcePanelPlugin* plugin) :
 	gtk_widget_show(GTK_WIDGET(m_button_box));
 
 	m_button_icon = GTK_IMAGE(gtk_image_new());
+	gtk_widget_set_valign(GTK_WIDGET(m_button_icon), GTK_ALIGN_CENTER);
 	icon_changed(wm_settings->button_icon_name);
 	gtk_widget_set_tooltip_markup(m_button, wm_settings->button_title);
 	gtk_box_pack_start(m_button_box, GTK_WIDGET(m_button_icon), true, false, 0);
@@ -453,7 +454,10 @@ gboolean Plugin::size_changed(gint size)
 	gint icon_size = xfce_panel_plugin_get_icon_size(m_plugin);
 	if (!wm_settings->button_single_row)
 	{
-		icon_size *= xfce_panel_plugin_get_nrows(m_plugin);
+		// پنل چندردیفه: آیکون تمامِ فضای span نشود — ۳/۴ فضای «حداکثر دو ردیف»؛
+		// سه ردیفه یا بیشتر شدن پنل بخش موش را عریض‌تر نمی‌کند (سقف = اندازهٔ فعلی)
+		const gint span_rows = std::min<gint>(xfce_panel_plugin_get_nrows(m_plugin), 2);
+		icon_size = (icon_size * span_rows * 3) / 4;
 	}
 	gtk_image_set_pixel_size(m_button_icon, icon_size);
 

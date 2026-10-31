@@ -37,17 +37,42 @@ public:
 	void remove(Launcher* launcher);
 	void set_menu_items();
 	void unset_menu_items();
+	void on_height_changed();
+	// ظرفیت واقعی پس از pump در show — اگر با آخرین بازچینش فرق دارد resync
+	void sync_capacity();
+	// تعداد ستون‌های دارای آیتم — مبنای عرض منو (کاربر: تعداد ستون تنظیمی =
+	// حداکثر؛ ستون بدون آیتم فضا نمی‌گیرد)
+	int get_used_columns() const
+	{
+		return m_used_cols;
+	}
 
 private:
+	// pitch واقعی اندازه‌گیری‌شده پس از اولین رندر — تخمین showهای بعدی
+	static int s_measured_pitch;
+	friend class Window;
 	void extend_context_menu(GtkWidget* menu) override;
 	bool remember_launcher(Launcher* launcher) override;
 	void on_row_changed(GtkTreeModel* model, GtkTreePath* path, GtkTreeIter* iter);
 	void on_row_inserted(GtkTreeModel* model, GtkTreePath* path, GtkTreeIter* iter);
 	void on_row_deleted(GtkTreePath* path);
 	std::vector<Launcher*> sort() const;
-	void sort_ascending();
-	void sort_descending();
+	void sort_favorites();
+	void rebuild();
+	void schedule_resync();
+	void resync_now();
 	void view_created() override;
+
+	guint m_resync_source = 0;
+	Launcher* m_pending_add = nullptr;
+	int m_pending_remove = -1;
+	int m_columns = 2;
+	int m_used_cols = 1;
+	int m_built_capacity = 0;
+	// سرریز از ظرفیت کل ستون‌ها = scrollbar عمودی واقعی (نه گذرا)
+	bool m_overflow = false;
+	// نگاشت سلول‌های مدل (سطری) به ایندکس منطقی favorites؛ -1 = خانهٔ خالی
+	std::vector<int> m_model_slots;
 };
 
 }

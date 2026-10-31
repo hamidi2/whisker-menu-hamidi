@@ -17,18 +17,13 @@
 
 #include "launcher-icon-view.h"
 
+#include "element.h"
 #include "icon-renderer.h"
 #include "settings.h"
 #include "slot.h"
 #include <gdk/gdkkeysyms.h>
 
 using namespace WhiskerMenu;
-
-static void wm_log(const char* what)
-{
-	FILE* f = fopen("/tmp/wm-debug.log", "a");
-	if (f) { fprintf(f, "%s\n", what); fclose(f); }
-}
 
 //-----------------------------------------------------------------------------
 
@@ -218,13 +213,11 @@ void LauncherIconView::schedule_width_update()
 
 void LauncherIconView::set_width_authority()
 {
-	wm_log("set_width_authority");
 	m_authority = true;
 }
 
 void LauncherIconView::set_model(GtkTreeModel* model)
 {
-	wm_log("set_model");
 	m_model = model;
 	gtk_icon_view_set_model(m_view, model);
 	update_item_width(m_authority);
@@ -265,15 +258,25 @@ int LauncherIconView::s_item_width = 0;
 
 void LauncherIconView::update_item_width(bool measure)
 {
-	wm_log(measure ? "update_item_width(measure=true)" : "update_item_width(false)");
 	if (measure)
 	{
-		// عرض = پهن‌ترین نام + آیکون + فاصله (فقط هنگام تغییر favorites)
+		// فرمول خالص (بدون draw، بدون حدس): عرض سلول = پد سلول + آیکون +
+		// فاصلهٔ آیکون-متن + متن عریض‌ترین آیتم. همهٔ اجزا معلوم‌اند:
+		// item-padding خودمان 0 ست شده، spacing=6 دو طرف آیکون، گاپ آیکون-متن
+		// هم همان spacing رندرر است. measure با context واقعی ویجت (pango
+		// layoutِ ویجت = فونت/اسکیل قطعی که منو با آن کشیده می‌شود)
 		GtkTreeModel* model = gtk_icon_view_get_model(m_view);
 		int text_w = 0;
 		if (model)
 		{
+			// measure با فونت واقعی تم (CSS)، نه فونت پیش‌فرض context —
+			// اختلاف این دو، item_width را بزرگ‌تر از رندر واقعی می‌کرد
+			// و منجر به فضای مردهٔ سمت راست پنجره می‌شد
 			PangoLayout* layout = gtk_widget_create_pango_layout(GTK_WIDGET(m_view), nullptr);
+			GtkStyleContext* style = gtk_widget_get_style_context(GTK_WIDGET(m_view));
+			const PangoFontDescription* theme_font = gtk_style_context_get_font(style, GTK_STATE_FLAG_NORMAL);
+			pango_layout_set_font_description(layout, theme_font);
+			gtk_style_context_add_class(style, "launchers");
 			GtkTreeIter iter;
 			if (gtk_tree_model_get_iter_first(model, &iter))
 			{
@@ -296,16 +299,14 @@ void LauncherIconView::update_item_width(bool measure)
 			}
 			g_object_unref(layout);
 		}
-		int icon = (m_icon_size > 1) ? m_icon_size : 0;
-		s_item_width = text_w + 6; // متن + گاپ (آیکون سهم رندرر است)
-		{
-			FILE* f = fopen("/tmp/wm-debug.log", "a");
-			if (f)
-			{
-				fprintf(f, "measure=%d text_w=%d icon=%d s=%d\n", measure ? 1 : 0, text_w, icon, s_item_width);
-				fclose(f);
-			}
-		}
+		gint item_pad = 0;
+		g_object_get(G_OBJECT(m_view), "item-padding", &item_pad, nullptr);
+		const int icon = (m_icon_size > 1) ? m_icon_size : 0;
+		// ساختار سلول GtkIconView (سورس GTK3): cell_area عرضش = item_width؛
+		// داخل آن icon cell چسبیده به چپ، text cell چسبیده به راست (pack_end)
+		// — فاصلهٔ آزاد بین‌شان = item_width − (icon+text). برای گپ 6:
+		// item_width = 2×item-padding + icon + 6 + text
+		s_item_width = 2 * item_pad + icon + 6 + text_w;
 		if (s_item_width < 60)
 		{
 			s_item_width = 60;
@@ -313,26 +314,7 @@ void LauncherIconView::update_item_width(bool measure)
 	}
 	if (s_item_width > 0)
 	{
-		gtk_icon_view_set_item_width(m_view, 150);
-		gint mn1 = 0, nt1 = 0;
-		gtk_widget_get_preferred_width(GTK_WIDGET(m_view), &mn1, &nt1);
 		gtk_icon_view_set_item_width(m_view, s_item_width);
-		gint mn = 0, nt = 0;
-		gtk_widget_get_preferred_width(GTK_WIDGET(m_view), &mn, &nt);
-		int applied = gtk_icon_view_get_item_width(m_view);
-		FILE* f = fopen("/tmp/wm-debug.log", "a");
-		if (f)
-		{
-			fprintf(f, "view-check: set=%d readback=%d viewmin=%d viewnat=%d rows=%d\n",
-					s_item_width, applied, mn, nt,
-					m_model ? gtk_tree_model_iter_n_children(m_model, nullptr) : -1);
-			gint rmn = 0, rnt = 0, tmn = 0, tnt = 0;
-			gtk_cell_renderer_get_preferred_width(GTK_CELL_RENDERER(m_icon_renderer), GTK_WIDGET(m_view), &rmn, &rnt);
-			gint marg = 0, sp = 0, cs = 0, ip = 0, iw = 0, cols = 0;
-			g_object_get(m_view, "margin", &marg, "spacing", &sp, "column-spacing", &cs, "item-padding", &ip, "item-width", &iw, "columns", &cols, nullptr);
-			fprintf(f, "probe150: min=%d nat=%d | renderer min=%d nat=%d | margin=%d spacing=%d colspacing=%d itempad=%d itemw=%d cols=%d\n", mn1, nt1, rmn, rnt, marg, sp, cs, ip, iw, cols);
-			fclose(f);
-		}
 	}
 }
 
@@ -359,9 +341,31 @@ gboolean LauncherIconView::wrap_navigation(GdkEventKey* event)
 		return FALSE;
 	}
 
+	// با یک ستون، ناوبری طبیعی GTK همان درست است
+	const int cols = gtk_icon_view_get_columns(m_view);
+	if (cols < 2)
+	{
+		return FALSE;
+	}
+
+	// چیدمان سطری: آیتم‌های زوج ستون چپ، فرد ستون راست؛
+	// سلول‌های خالی (لانچر null) فقط ته ستون راست‌اند و نباید مقصد شوند
 	const int n = gtk_tree_model_iter_n_children(model, nullptr);
-	const int cols = 2;
-	const int rows_first = (n + cols - 1) / cols;
+	auto is_placeholder = [model](int i) -> gboolean
+	{
+		GtkTreePath* p = gtk_tree_path_new_from_indices(i, -1);
+		GtkTreeIter it;
+		Element* e = nullptr;
+		gboolean empty = TRUE;
+		if (gtk_tree_model_get_iter(model, &it, p))
+		{
+			gtk_tree_model_get(model, &it, COLUMN_LAUNCHER, &e, -1);
+			empty = (e == nullptr);
+		}
+		gtk_tree_path_free(p);
+		return empty;
+	};
+
 	GtkTreePath* cursor = nullptr;
 	gtk_icon_view_get_cursor(m_view, &cursor, nullptr);
 	if (!cursor)
@@ -369,53 +373,69 @@ gboolean LauncherIconView::wrap_navigation(GdkEventKey* event)
 		return FALSE;
 	}
 	const int idx = gtk_tree_path_get_indices(cursor)[0];
-	int col = idx / rows_first;
-	int row = idx - col * rows_first;
-	int rows_in_col = (col == cols - 1) ? (n - (cols - 1) * rows_first) : rows_first;
-	if (rows_in_col < 1)
-	{
-		rows_in_col = rows_first;
-	}
+	const int col = idx % cols;
 
 	int target = -1;
 	if (down)
 	{
-		if (row + 1 < rows_in_col)
+		int t = idx + cols;
+		if (t < n && !is_placeholder(t))
 		{
-			target = col * rows_first + row + 1;
+			target = t; // پایین در همان ستون
 		}
-		else if (col + 1 < cols)
+		else if (col + 1 < cols && !is_placeholder(col + 1))
 		{
-			target = (col + 1) * rows_first;
+			target = col + 1; // ته ستون → سر ستون بعدی
 		}
 	}
 	else
 	{
-		if (row > 0)
+		int t = idx - cols;
+		if (t >= 0 && !is_placeholder(t))
 		{
-			target = col * rows_first + row - 1;
+			target = t; // بالا در همان ستون
 		}
 		else if (col > 0)
 		{
-			int prev_rows = (col - 1 == cols - 1) ? (n - (cols - 1) * rows_first) : rows_first;
-			target = (col - 1) * rows_first + prev_rows - 1;
+			for (int r = (n - 1) / cols; r >= 0; --r)
+			{
+				int c = r * cols + (col - 1);
+				if (c < n && !is_placeholder(c))
+				{
+					target = c; // سر ستون → ته ستون قبلی
+					break;
+				}
+			}
 		}
 	}
 	gtk_tree_path_free(cursor);
-	if (target < 0 || target >= n)
+	if (target < 0 || target >= n || is_placeholder(target))
 	{
-		return TRUE;
+		return TRUE; // لبهٔ کلی — بمان
 	}
 	GtkTreePath* path = gtk_tree_path_new_from_indices(target, -1);
 	gtk_icon_view_unselect_all(m_view);
 	gtk_icon_view_select_path(m_view, path);
 	gtk_icon_view_set_cursor(m_view, path, nullptr, FALSE);
-	gtk_icon_view_scroll_to_path(m_view, path, TRUE, down ? 1.0 : 0.0, 0.5);
+	// اسکرول فوری و حداقلی (بدون انیمیشن scroll_to_path)
+	GdkRectangle rect = {0, 0, 0, 0};
+	if (gtk_icon_view_get_cell_rect(m_view, path, nullptr, &rect) && rect.height > 0)
+	{
+		GtkAdjustment* vadj = gtk_scrollable_get_vadjustment(GTK_SCROLLABLE(m_view));
+		gdouble v = gtk_adjustment_get_value(vadj);
+		gdouble page = gtk_adjustment_get_page_size(vadj);
+		if (rect.y < 0)
+		{
+			gtk_adjustment_set_value(vadj, v + rect.y);
+		}
+		else if (rect.y + rect.height > page)
+		{
+			gtk_adjustment_set_value(vadj, v + (rect.y + rect.height - page));
+		}
+	} // فقط اگر پنهان است، حداقل اسکرول
 	gtk_tree_path_free(path);
 	return TRUE;
 }
-
-//-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
 
@@ -441,8 +461,9 @@ void LauncherIconView::reload_icon_size()
 	// Reset padding to fix icon clipping
 	gtk_icon_view_set_item_padding(m_view, 0);
 
-	gtk_icon_view_set_item_padding(m_view, 0);
-	update_item_width(false);
+	// اندازهٔ آیکون عوض شد → عرض سلول باید دوباره measure شود (نه کش کهنه؛
+	// s_item_width استاتیک است و بدون measure(true) عرض منو غلط می‌ماند)
+	update_item_width(true);
 }
 
 //-----------------------------------------------------------------------------
