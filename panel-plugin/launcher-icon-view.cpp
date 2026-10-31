@@ -332,10 +332,67 @@ gboolean LauncherIconView::wrap_navigation(GdkEventKey* event)
 	{
 		return FALSE;
 	}
+	auto is_placeholder = [this, model](int i) -> gboolean
+	{
+		GtkTreePath* p = gtk_tree_path_new_from_indices(i, -1);
+		GtkTreeIter it;
+		Element* e = nullptr;
+		gboolean empty = TRUE;
+		if (gtk_tree_model_get_iter(model, &it, p))
+		{
+			gtk_tree_model_get(model, &it, COLUMN_LAUNCHER, &e, -1);
+			empty = (e == nullptr);
+		}
+		gtk_tree_path_free(p);
+		return empty;
+	};
 	guint keyval = 0;
 	gdk_event_get_keyval(reinterpret_cast<GdkEvent*>(event), &keyval);
 	const bool down = (keyval == GDK_KEY_Down || keyval == GDK_KEY_KP_Down);
 	const bool up = (keyval == GDK_KEY_Up || keyval == GDK_KEY_KP_Up);
+	const bool right = (keyval == GDK_KEY_Right || keyval == GDK_KEY_KP_Right);
+	const bool left = (keyval == GDK_KEY_Left || keyval == GDK_KEY_KP_Left);
+	// چپ/راست: سلول بعدی/قبلیِ هم‌ردیف؛ اگر خالی (placeholder) یا بیرون
+	// ستون‌هاست، اصلاً حرکت نکن — caret روی هیچ خانهٔ خالی نمی‌ماند
+	if (right || left)
+	{
+		GtkTreePath* cursor = nullptr;
+		gtk_icon_view_get_cursor(m_view, &cursor, nullptr);
+		GtkTreePath* sel = get_selected_path();
+		if (!cursor && sel)
+		{
+			cursor = sel;
+		}
+		if (!cursor)
+		{
+			return TRUE;
+		}
+		const int idx = gtk_tree_path_get_indices(cursor)[0];
+		gtk_tree_path_free(cursor);
+		if (sel)
+		{
+			gtk_tree_path_free(sel);
+		}
+		const int cols = gtk_icon_view_get_columns(m_view);
+		if (cols < 2)
+		{
+			return TRUE;
+		}
+		const int t = right ? idx + 1 : idx - 1;
+		if (t < 0 || (t / cols) != (idx / cols))
+		{
+			return TRUE;
+		}
+		if (!is_placeholder(t))
+		{
+			GtkTreePath* path = gtk_tree_path_new_from_indices(t, -1);
+			gtk_icon_view_unselect_all(m_view);
+			gtk_icon_view_select_path(m_view, path);
+			gtk_icon_view_set_cursor(m_view, path, nullptr, FALSE);
+			gtk_tree_path_free(path);
+		}
+		return TRUE;
+	}
 	if (!down && !up)
 	{
 		return FALSE;
@@ -351,20 +408,6 @@ gboolean LauncherIconView::wrap_navigation(GdkEventKey* event)
 	// چیدمان سطری: آیتم‌های زوج ستون چپ، فرد ستون راست؛
 	// سلول‌های خالی (لانچر null) فقط ته ستون راست‌اند و نباید مقصد شوند
 	const int n = gtk_tree_model_iter_n_children(model, nullptr);
-	auto is_placeholder = [model](int i) -> gboolean
-	{
-		GtkTreePath* p = gtk_tree_path_new_from_indices(i, -1);
-		GtkTreeIter it;
-		Element* e = nullptr;
-		gboolean empty = TRUE;
-		if (gtk_tree_model_get_iter(model, &it, p))
-		{
-			gtk_tree_model_get(model, &it, COLUMN_LAUNCHER, &e, -1);
-			empty = (e == nullptr);
-		}
-		gtk_tree_path_free(p);
-		return empty;
-	};
 
 	GtkTreePath* cursor = nullptr;
 	gtk_icon_view_get_cursor(m_view, &cursor, nullptr);
