@@ -515,6 +515,20 @@ void FavoritesPage::sync_capacity()
 	}
 	gtk_tree_path_free(path);
 	const int cap = get_window()->favorites_capacity_rows();
+	{
+		GtkAllocation wa, va;
+		gtk_widget_get_allocation(GTK_WIDGET(get_window()->get_widget()), &wa);
+		gtk_widget_get_allocation(get_view()->get_widget(), &va);
+		FILE* f = fopen("/tmp/wm-geo.log", "a");
+		if (f)
+		{
+			fprintf(f, "sync_cap: menu_h(set)=%d win=%d view=%d chrome_win-view=%d pitch_meas=%d cap=%d built=%d scale=%d\n",
+					(int)wm_settings->menu_height, wa.height, va.height,
+					wa.height - va.height, FavoritesPage::s_measured_pitch,
+					cap, m_built_capacity, gtk_widget_get_scale_factor(get_view()->get_widget()));
+			fclose(f);
+		}
+	}
 	if (cap != m_built_capacity)
 	{
 		resync_now();
