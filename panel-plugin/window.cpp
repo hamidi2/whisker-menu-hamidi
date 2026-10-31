@@ -164,6 +164,9 @@ WhiskerMenu::Window::Window(Plugin* plugin) :
 	// Create the border of the window
 	GtkWidget* frame = gtk_frame_new(nullptr);
 	gtk_frame_set_shadow_type(GTK_FRAME(frame), GTK_SHADOW_OUT);
+	// سایهٔ OUT فقط پایین/راست را روشن می‌کند؛ خط روشن چپ هم برای تقارن
+	// (خواستهٔ کاربر) — با همان آلفای ظریف تم تیره
+	gtk_style_context_add_class(gtk_widget_get_style_context(frame), "vibris-frame");
 	gtk_container_add(GTK_CONTAINER(m_window), frame);
 
 	// Create window contents stack
@@ -293,7 +296,8 @@ WhiskerMenu::Window::Window(Plugin* plugin) :
 	{
 		GtkCssProvider* provider = gtk_css_provider_new();
 		gtk_css_provider_load_from_data(provider,
-				".command-button { padding: 0px; min-width: 0px; min-height: 0px; }", -1, nullptr);
+				".command-button { padding: 0px; min-width: 0px; min-height: 0px; }\n"
+				"frame.vibris-frame { border-left: 1px solid alpha(white, 0.10); }", -1, nullptr);
 		gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),
 				GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
 		g_object_unref(provider);
@@ -797,17 +801,23 @@ int WhiskerMenu::Window::favorites_capacity_rows() const
 	// تا تخمینِ فریم‌های ناهم‌خوان (بین درخواست و تخصیص) دقیقاً همان عدد را
 	// بدهد — اختلاف estimate/allocation ظرفیت را یکی جابه‌جا می‌کرد و ستون‌ها
 	// ۱↔۲ فلیپ می‌شدند (عرض ۵۸۴↔۵۹۶ و جابه‌جایی آیتم‌ها = پیرپیر)
+	// حین درگ از «هندسهٔ خواسته − chrome ذخیره‌شده» بگیر نه تخصیص: تخصیص یک
+	// فریم عقب می‌ماند و همان حالت گذرای «آخرین آیتم رفته ستون اول ولی هنوز
+	// دوسطونه‌ایم» می‌شود (خواستهٔ کاربر: یک تکون، نه دو تکون)
 	const int win_alloc = gtk_widget_get_allocated_height(GTK_WIDGET(m_window));
 	const int alloc_h = gtk_widget_get_allocated_height(v);
 	int avail = 0;
 	if ((win_alloc > 1) && (alloc_h > 1) && (win_alloc == m_geometry.height))
 	{
-		avail = alloc_h;
 		m_last_chrome = win_alloc - alloc_h;
 	}
-	else if (m_last_chrome > 0)
+	if (m_last_chrome > 0)
 	{
 		avail = m_geometry.height - m_last_chrome;
+	}
+	else if (alloc_h > 1)
+	{
+		avail = alloc_h;
 	}
 	else
 	{

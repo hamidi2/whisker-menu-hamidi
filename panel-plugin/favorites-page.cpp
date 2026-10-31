@@ -33,6 +33,7 @@
 using namespace WhiskerMenu;
 
 int FavoritesPage::s_measured_pitch = 0;
+bool FavoritesPage::drag_in_progress = false;
 
 //-----------------------------------------------------------------------------
 
@@ -227,10 +228,50 @@ void FavoritesPage::set_menu_items()
 	// layout فقط با ستون‌های دارای آیتم — ستون خالی وجود ندارد که نه دیده شود
 	// و نه با arrow-right بشود داخلش رفت (خواستهٔ کاربر)
 	gtk_icon_view_set_columns(GTK_ICON_VIEW(get_view()->get_widget()), m_used_cols);
+	// حین درگ: اگر سرریز واقعی نیست، vscrollbar را بلافاصله مخفی نگه دار تا
+	// در گپِ بین rebuild و allocate، پهنای آن به عرض اضافه نگردد (جهش عرض)
+	if (get_window()->is_resizing() && !m_overflow)
+	{
+		gtk_widget_hide(gtk_scrolled_window_get_vscrollbar(
+				GTK_SCROLLED_WINDOW(get_widget())));
+	}
 	// انتخاب overlay بودن scrollbar عمودی (تغییر از تنظیمات هم زنده اعمال شود)
 	g_object_set(get_widget(), "overlay-scrolling",
 			wm_settings->favorites_scrollbar_overlay ? TRUE : FALSE, nullptr);
 	get_view()->set_model(model);
+	// سلول‌های خالی (placeholder) قابل انتخاب/هاور نباشند — hover یا arrow-right
+	// نباید آبی‌شان کند (خواستهٔ کاربر). هر انتخابی روی ردیفِ placeholder
+	// فوراً خالی می‌شود؛ این برای hover-selection و کیبورد هر دو کار می‌کند
+	g_signal_connect(get_view()->get_widget(), "selection-changed",
+		G_CALLBACK(+[](GtkIconView* view, gpointer) -> void
+		{
+			GList* sel = gtk_icon_view_get_selected_items(view);
+			if (!sel)
+			{
+				return;
+			}
+			GtkTreeModel* m = gtk_icon_view_get_model(view);
+			gboolean any_real = FALSE;
+			for (GList* l = sel; l; l = l->next)
+			{
+				GtkTreeIter it;
+				if (gtk_tree_model_get_iter(m, &it, static_cast<GtkTreePath*>(l->data)))
+				{
+					WhiskerMenu::Element* e = nullptr;
+					gtk_tree_model_get(m, &it, LauncherView::COLUMN_LAUNCHER, &e, -1);
+					if (e)
+					{
+						any_real = TRUE;
+					}
+				}
+			}
+			g_list_free_full(sel, reinterpret_cast<GDestroyNotify>(&gtk_tree_path_free));
+			if (!any_real)
+			{
+				gtk_icon_view_unselect_all(view);
+			}
+		}),
+		nullptr);
 	get_view()->set_width_authority();
 	get_view()->update_item_width(true);
 
@@ -509,6 +550,18 @@ void FavoritesPage::view_created()
 	// درگ برای افزودن/برداشتن فعال می‌ماند؛ ترتیب را sort خودکار تعیین می‌کند؛
 	// ستون‌ها فقط دستی‌اند
 	set_reorderable(true);
+
+	// ردیابی DnD واقعی
+	g_signal_connect(get_view()->get_widget(), "drag-begin",
+		G_CALLBACK(+[](GtkWidget*, GdkDragContext*, gpointer) -> void
+		{
+			FavoritesPage::drag_in_progress = true;
+		}), nullptr);
+	g_signal_connect(get_view()->get_widget(), "drag-end",
+		G_CALLBACK(+[](GtkWidget*, GdkDragContext*, gpointer) -> void
+		{
+			FavoritesPage::drag_in_progress = false;
+		}), nullptr);
 
 	// هیچ scroll افقی‌ای مجاز نیست: عرض منو همیشه برابر عرض محتواست
 	GtkWidget* sw = get_widget();

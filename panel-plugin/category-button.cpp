@@ -18,6 +18,7 @@
 #include "category-button.h"
 
 #include "settings.h"
+#include "favorites-page.h"
 #include "slot.h"
 
 #include <libxfce4panel/libxfce4panel.h>
@@ -50,7 +51,8 @@ CategoryButton::CategoryButton(GIcon* icon, const gchar* text)
 		[](GtkWidget* widget, GdkEvent*) -> gboolean
 		{
 			GtkToggleButton* button = GTK_TOGGLE_BUTTON(widget);
-			if (wm_settings->category_hover_activate && !gtk_toggle_button_get_active(button))
+			if (wm_settings->category_hover_activate && !gtk_toggle_button_get_active(button)
+					&& !WhiskerMenu::FavoritesPage::drag_in_progress)
 			{
 				g_timeout_add(150, &hover_timeout, button);
 			}
@@ -61,7 +63,8 @@ CategoryButton::CategoryButton(GIcon* icon, const gchar* text)
 		[](GtkWidget* widget, GdkEvent*) -> gboolean
 		{
 			GtkToggleButton* button = GTK_TOGGLE_BUTTON(widget);
-			if (wm_settings->category_hover_activate && !gtk_toggle_button_get_active(button))
+			if (wm_settings->category_hover_activate && !gtk_toggle_button_get_active(button)
+					&& !WhiskerMenu::FavoritesPage::drag_in_progress)
 			{
 				gtk_toggle_button_set_active(button, true);
 				gtk_widget_grab_focus(widget);

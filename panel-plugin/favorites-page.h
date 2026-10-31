@@ -28,6 +28,10 @@ namespace WhiskerMenu
 class FavoritesPage : public Page
 {
 public:
+	// حین drag-and-drop واقعی (افزودن/برداشتن از لیست) — hover دسته‌ها
+	// و hover-selection نباید درگیر شوند (شکایت «dragging with hover»)
+	static bool drag_in_progress;
+public:
 	explicit FavoritesPage(Window* window);
 	~FavoritesPage();
 
@@ -48,6 +52,7 @@ public:
 	}
 
 private:
+	static int placeholder_guard;
 	// pitch واقعی اندازه‌گیری‌شده پس از اولین رندر — تخمین showهای بعدی
 	static int s_measured_pitch;
 	friend class Window;
