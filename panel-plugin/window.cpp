@@ -866,28 +866,6 @@ void WhiskerMenu::Window::resize(int delta_x, int delta_y, int delta_width, int 
 			target_h = std::max(m_min_h, m_max_bottom - target_y);
 		}
 	}
-	// درگ پله‌ای: ارتفاع به مضارب pitch ردیف گرد می‌شود (خواستهٔ کاربر) —
-	// ردیف نصفه‌نمیز در ستون دوم هم حذف می‌شود و ظرفیت تمیز جابه‌جا می‌شود.
-	// پایین ثابت می‌ماند: بعد از گرد کردن، y جبران می‌شود.
-	{
-		int pitch = FavoritesPage::s_measured_pitch;
-		if (pitch <= 0)
-		{
-			pitch = wm_settings->launcher_icon_size.get_size() + 6;
-		}
-		const int chrome = (m_last_chrome > 0) ? m_last_chrome : (m_min_h - 10);
-		const int avail = target_h - chrome;
-		if (avail > pitch)
-		{
-			const int rows = std::max(1, avail / pitch);
-			const int new_h = rows * pitch + chrome;
-			if (new_h != target_h && new_h >= m_min_h)
-			{
-				target_y += target_h - new_h; // پایین ثابت
-				target_h = new_h;
-			}
-		}
-	}
 	// هدف را به‌روز کن؛ اعمال یک‌بار در هر چرخهٔ main-loop (coalesce موشن‌های تند) —
 	// اعمالِ re-entrant داخل هندلرِ موشن = پیرپیر حین حرکت تند
 	m_target_x = m_geometry.x + delta_x;
@@ -1407,6 +1385,15 @@ bool WhiskerMenu::Window::set_size(int width, int height)
 			// تخصیص جاری که فضای مردهٔ پنجره را هم شامل می‌شود و حلقهٔ
 			// بازخوردی می‌ساخت که فضا را همیشه نگه می‌داشت
 			gtk_widget_get_preferred_width(v, &lav_mn, &lav_nt);
+			// overlay خاموش: عرض scrollbar همیشه رزرو — ثابت و بدون جهش؛
+			// overlay روشن: شناور روی محتوا، عرضی نمی‌گیرد
+			if (!wm_settings->favorites_scrollbar_overlay)
+			{
+				GtkWidget* sb = gtk_scrolled_window_get_vscrollbar(GTK_SCROLLED_WINDOW(m_favorites->get_widget()));
+				gint sb_mn = 0, sb_nt = 0;
+				gtk_widget_get_preferred_width(sb, &sb_mn, &sb_nt);
+				lav_nt += std::max(sb_mn, sb_nt);
+			}
 		}
 		else
 		{
