@@ -948,13 +948,9 @@ void WhiskerMenu::Window::apply_target_size()
 void WhiskerMenu::Window::resize_start()
 {
 	m_resizing = true;
-	// حین درگ vscrollbar همیشه مپ می‌ماند (policy ALWAYS): viewport favorites
-	// پهنایش ثابت است و در گپِ بین resize و بازچینش، ورود/خروجِ sb عرض را
-	// نمی‌لرزاند (جهش «چاق/لاغر» هنگام درگ به پایین). NEVER سفت می‌کرد؛
-	// ALWAYS فقط در حین درگ است. resize_end برمی‌گرداند به AUTOMATIC که
-	// رفتار نهاییِ تأییدشده را می‌دهد (فقط با پر شدن ستون دوم)
-	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(m_favorites->get_widget()),
-			GTK_POLICY_NEVER, GTK_POLICY_ALWAYS);
+	// policy ALWAYS از ابتدا ست شده (view_created) و تغییر نمی‌کند: جای
+	// scrollbar همیشه رزرو است (صفر جهش عرض) و دیده‌شدنش با opacity کنترل
+	// می‌شود — فقط وقتی ستون دوم هم پر شده باشد
 	// حداقل ارتفاعِ محتوای واقعی — از ویجت محتوا؛ خود پنجره را نگیر چون
 	// set_size_request ما minimum آن را override کرده و همیشه = ارتفاع فعلی می‌شود
 	gint min_h = 0;
@@ -989,9 +985,7 @@ void WhiskerMenu::Window::resize_end()
 	// یک بازچینش نهایی با تخصیص قطعی (فقط اصلاح وضعیت، نه کار جبرانی —
 	// کار اصلی حین درگ انجام شده)
 	m_favorites->on_height_changed();
-	// رفتار نهایی اسکرول‌بار: AUTOMATIC — فقط با پر شدن ستون دوم
-	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(m_favorites->get_widget()),
-			GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+	// policy دست نمی‌خورد؛ نمایان‌بودن scrollbar را هوک opacity تعیین می‌کند
 }
 
 //-----------------------------------------------------------------------------

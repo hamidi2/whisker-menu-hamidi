@@ -552,8 +552,6 @@ void FavoritesPage::resync_now()
 		m_pending_remove = -1;
 	}
 	rebuild();
-	// visibility scrollbar را هوک size-allocate حسابی و همان‌فریم مدیریت
-	// می‌کند؛ خارج از درگ AUTOMATIC خودش تصمیم می‌گیرد
 }
 
 //-----------------------------------------------------------------------------
@@ -578,7 +576,10 @@ void FavoritesPage::view_created()
 
 	// هیچ scroll افقی‌ای مجاز نیست: عرض منو همیشه برابر عرض محتواست
 	GtkWidget* sw = get_widget();
-	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(sw), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+	// ALWAYS همیشه: جای scrollbar ثابت (صفر جهش عرض در درگ)؛ دیده‌شدنش با
+	// opacity در هوک size-allocate کنترل می‌شود — فقط وقتی ستون دوم هم پر است
+	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(sw), GTK_POLICY_NEVER, GTK_POLICY_ALWAYS);
+	gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(sw), 1);
 	// scrollbar عمودی overlay یا جاگیر — انتخاب کاربر
 	g_object_set(sw, "overlay-scrolling",
 			wm_settings->favorites_scrollbar_overlay ? TRUE : FALSE, nullptr);
@@ -598,20 +599,25 @@ void FavoritesPage::view_created()
 	connect(get_view()->get_widget(), "size-allocate",
 		[this](GtkWidget*, GdkRectangle*) -> gboolean
 		{
+			// ظرفیت و نمایان‌بودن scrollbar — در درگ و عادی یک‌سان
+			GtkTreeModel* model = gtk_icon_view_get_model(GTK_ICON_VIEW(get_view()->get_widget()));
+			const int n = model ? gtk_tree_model_iter_n_children(model, nullptr) : 0;
+			const int cols = (wm_settings->favorites_columns > 0) ? wm_settings->favorites_columns : 2;
+			const int cap = get_window()->favorites_capacity_rows();
+			const bool overflow = n > cols * cap;
+			GtkWidget* vsb = gtk_scrolled_window_get_vscrollbar(GTK_SCROLLED_WINDOW(get_widget()));
+			// جای scrollbar همیشه رزرو است؛ فقط دیده‌شدنش تابع سرریز واقعی است
+			// (قانون نهایی: فقط وقتی ستون دوم هم پر شده باشد). opacity چیدمان
+			// را به‌هم نمی‌ریزد پس هیچ جهش عرضی وجود ندارد
+			gtk_widget_set_opacity(vsb, overflow ? 1.0 : 0.0);
 			if (get_window()->is_resizing())
 			{
-				// تصمیم scrollbar حسابی و همان‌فریم: سرریز = n > ستون‌ها×ظرفیت
-				// (از ارتفاع تخصیص‌یافته). بدون دست‌زدن به مدل.
 				// بازچینش فقط با تغییر واقعی ظرفیت — نه هر فریمِ درگ. rebuildِ
 				// بی‌دلیل مدل را خالی-پر می‌کرد = چشمک آیتم‌ها (پیرپیر آیتم‌ها)
-				const int cap = get_window()->favorites_capacity_rows();
 				if (cap != m_built_capacity)
 				{
 					schedule_resync();
 				}
-				// اسکرول‌بار در طول درگ دست‌نخورده: policy ALWAYS (resize_start)
-				// آن را همیشه مپ نگه می‌دارد؛ show/hideِ همین‌جا هر فریم
-				// viewport را ۱۲px جابه‌جا می‌کرد (فلش «چاق/لاغر»)
 			}
 			return FALSE;
 		});
