@@ -228,13 +228,6 @@ void FavoritesPage::set_menu_items()
 	// layout فقط با ستون‌های دارای آیتم — ستون خالی وجود ندارد که نه دیده شود
 	// و نه با arrow-right بشود داخلش رفت (خواستهٔ کاربر)
 	gtk_icon_view_set_columns(GTK_ICON_VIEW(get_view()->get_widget()), m_used_cols);
-	// حین درگ: اگر سرریز واقعی نیست، vscrollbar را بلافاصله مخفی نگه دار تا
-	// در گپِ بین rebuild و allocate، پهنای آن به عرض اضافه نگردد (جهش عرض)
-	if (get_window()->is_resizing() && !m_overflow)
-	{
-		gtk_widget_hide(gtk_scrolled_window_get_vscrollbar(
-				GTK_SCROLLED_WINDOW(get_widget())));
-	}
 	// انتخاب overlay بودن scrollbar عمودی (تغییر از تنظیمات هم زنده اعمال شود)
 	g_object_set(get_widget(), "overlay-scrolling",
 			wm_settings->favorites_scrollbar_overlay ? TRUE : FALSE, nullptr);
@@ -609,26 +602,16 @@ void FavoritesPage::view_created()
 			{
 				// تصمیم scrollbar حسابی و همان‌فریم: سرریز = n > ستون‌ها×ظرفیت
 				// (از ارتفاع تخصیص‌یافته). بدون دست‌زدن به مدل.
-				GtkTreeModel* model = gtk_icon_view_get_model(GTK_ICON_VIEW(get_view()->get_widget()));
-				const int n = model ? gtk_tree_model_iter_n_children(model, nullptr) : 0;
-				const int cols = (wm_settings->favorites_columns > 0) ? wm_settings->favorites_columns : 2;
-				const int cap = get_window()->favorites_capacity_rows();
-				const bool overflow = n > cols * cap;
-				GtkWidget* vsb = gtk_scrolled_window_get_vscrollbar(GTK_SCROLLED_WINDOW(get_widget()));
-				if (overflow)
-				{
-					gtk_widget_show(vsb);
-				}
-				else
-				{
-					gtk_widget_hide(vsb);
-				}
 				// بازچینش فقط با تغییر واقعی ظرفیت — نه هر فریمِ درگ. rebuildِ
 				// بی‌دلیل مدل را خالی-پر می‌کرد = چشمک آیتم‌ها (پیرپیر آیتم‌ها)
+				const int cap = get_window()->favorites_capacity_rows();
 				if (cap != m_built_capacity)
 				{
 					schedule_resync();
 				}
+				// اسکرول‌بار در طول درگ دست‌نخورده: policy ALWAYS (resize_start)
+				// آن را همیشه مپ نگه می‌دارد؛ show/hideِ همین‌جا هر فریم
+				// viewport را ۱۲px جابه‌جا می‌کرد (فلش «چاق/لاغر»)
 			}
 			return FALSE;
 		});
